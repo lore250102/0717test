@@ -842,24 +842,11 @@ body {
     <h3 data-i18n="search">搜索</h3>
     <input type="text" class="search-box" id="searchInput" placeholder="搜索法规..." oninput="applyFilters()" data-i18n-placeholder="searchPlaceholder">
 
-    <h3 data-i18n="filterRegion">地区</h3>
-    <div class="filter-group">
-      <select class="filter-select" id="filterRegion" onchange="applyFilters()">
-        <option value="" data-i18n="all">全部</option>
-        <option value="Asia">Asia</option>
-        <option value="Europe">Europe</option>
-        <option value="Americas">Americas</option>
-        <option value="Africa">Africa</option>
-        <option value="Oceania">Oceania</option>
-      </select>
-    </div>
+    <h3 data-i18n="filterRegion">地区 Region</h3>
+    <div class="filter-group" id="regionCheckboxes" style="max-height:200px;overflow-y:auto;"></div>
 
-    <h3 data-i18n="filterCountry">国家</h3>
-    <div class="filter-group">
-      <select class="filter-select" id="filterCountry" onchange="applyFilters()">
-        <option value="" data-i18n="all">全部</option>
-      </select>
-    </div>
+    <h3 data-i18n="filterCountry">国家 Country</h3>
+    <div class="filter-group" id="countryCheckboxes" style="max-height:200px;overflow-y:auto;"></div>
 
     <h3 data-i18n="filterCategory">类别</h3>
     <div class="filter-group">
@@ -1282,7 +1269,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedKey = localStorage.getItem('laborLawApiKey');
   if (savedKey) document.getElementById('apiKeyInput').value = savedKey;
 
-  populateCountryFilter();
+  buildRegionCheckboxes(); buildCountryCheckboxes();
   populateCompareSelects();
   renderWorldMap();
   updateStats();
@@ -1559,8 +1546,8 @@ function updateStats() {
 }
 
 function renderChart() {
-  const regions = ['Asia', 'Europe', 'Americas', 'Africa', 'Oceania'];
-  const counts = regions.map(r => laborLawData.filter(d => d.region === r).length);
+  const regions = ALL_REGIONS;
+  const counts = regions.map(r => laborLawData.filter(d => (COUNTRY_TO_REGION[d.country] || d.region) === r).length);
   const max = Math.max(...counts);
 
   const chart = document.getElementById('barChart');
