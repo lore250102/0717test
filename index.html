@@ -843,10 +843,14 @@ body {
     <input type="text" class="search-box" id="searchInput" placeholder="搜索法规..." oninput="applyFilters()" data-i18n-placeholder="searchPlaceholder">
 
     <h3 data-i18n="filterRegion">地区 Region</h3>
-    <div class="filter-group" id="regionCheckboxes" style="max-height:200px;overflow-y:auto;"></div>
+      <select class="filter-select" id="filterRegion" onchange="onRegionChange()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;">
+        <option value="">全部地区</option>
+      </select>
 
     <h3 data-i18n="filterCountry">国家 Country</h3>
-    <div class="filter-group" id="countryCheckboxes" style="max-height:200px;overflow-y:auto;"></div>
+      <select class="filter-select" id="filterCountry" onchange="applyFilters()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;">
+        <option value="">全部国家</option>
+      </select>
 
     <h3 data-i18n="filterCategory">类别</h3>
     <div class="filter-group">
@@ -1269,7 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedKey = localStorage.getItem('laborLawApiKey');
   if (savedKey) document.getElementById('apiKeyInput').value = savedKey;
 
-  buildRegionCheckboxes(); buildCountryCheckboxes();
+  initFilters();
   populateCompareSelects();
   renderWorldMap();
   updateStats();
@@ -1353,54 +1357,54 @@ Object.entries(REGION_MAP).forEach(([r, cs]) => cs.forEach(c => { if (!COUNTRY_T
 const ALL_REGIONS = Object.keys(REGION_MAP);
 const ALL_COUNTRIES = ALL_REGIONS.flatMap(r => REGION_MAP[r]);
 
-function buildRegionCheckboxes() {
-  const el = document.getElementById('regionCheckboxes');
-  el.innerHTML = '<label style="display:flex;align-items:center;cursor:pointer;padding:4px 8px;border-radius:6px" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'"><input type="checkbox" class="region-cb" onchange="onRegionChange()" checked style="margin-right:8px"><span>全部</span></label>' +
-    ALL_REGIONS.map(r => '<label style="display:flex;align-items:center;cursor:pointer;padding:4px 8px;border-radius:6px" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'"><input type="checkbox" class="region-cb" value="'+r+'" onchange="onRegionChange()" style="margin-right:8px"><span>'+r+'</span></label>').join('');
+function initFilters() {
+  const regionSel = document.getElementById('filterRegion');
+  ALL_REGIONS.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r; opt.textContent = r;
+    regionSel.appendChild(opt);
+  });
+  populateCountryFilter();
 }
 
-function buildCountryCheckboxes(filtered) {
+function populateCountryFilter(filtered) {
   const list = filtered || ALL_COUNTRIES;
-  const el = document.getElementById('countryCheckboxes');
-  el.innerHTML = '<label style="display:flex;align-items:center;cursor:pointer;padding:4px 8px;border-radius:6px" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'"><input type="checkbox" class="country-cb" onchange="onCountryChange()" checked style="margin-right:8px"><span>全部</span></label>' +
-    list.map(c => '<label style="display:flex;align-items:center;cursor:pointer;padding:4px 8px;border-radius:6px" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'"><input type="checkbox" class="country-cb" value="'+c+'" onchange="onCountryChange()" style="margin-right:8px"><span>'+c+'</span></label>').join('');
-}
-
-function getSelectedRegions() {
-  return Array.from(document.querySelectorAll('.region-cb')).filter(cb => cb.checked && cb.value).map(cb => cb.value);
-}
-function getSelectedCountries() {
-  return Array.from(document.querySelectorAll('.country-cb')).filter(cb => cb.checked && cb.value).map(cb => cb.value);
+  const sel = document.getElementById('filterCountry');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">全部国家</option>';
+  list.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+  if (list.includes(prev)) sel.value = prev;
 }
 
 function onRegionChange() {
-  const sel = getSelectedRegions();
-  const visC = sel.length ? ALL_COUNTRIES.filter(c => sel.includes(COUNTRY_TO_REGION[c])) : ALL_COUNTRIES;
-  buildCountryCheckboxes(visC);
-  applyFilters();
-}
-
-function onCountryChange() {
-  const selC = getSelectedCountries();
-  const needed = [...new Set(selC.map(c => COUNTRY_TO_REGION[c]))];
-  document.querySelectorAll('.region-cb').forEach(cb => { if (cb.value && needed.includes(cb.value)) cb.checked = true; });
+  const region = document.getElementById('filterRegion').value;
+  if (region) {
+    populateCountryFilter(REGION_MAP[region] || []);
+  } else {
+    populateCountryFilter();
+  }
   applyFilters();
 }
 
 function applyFilters() {
   const search = document.getElementById('searchInput').value.toLowerCase();
-  const selRegions = getSelectedRegions();
-  const selCountries = getSelectedCountries();
+  const region = document.getElementById('filterRegion').value;
+  const country = document.getElementById('filterCountry').value;
   const category = document.getElementById('filterCategory').value;
   const importance = document.getElementById('filterImportance').value;
   const sortBy = document.getElementById('sortBy').value;
 
   filteredData = laborLawData.filter(item => {
-    if (selRegions.length > 0) {
+    // 地区筛选：通过映射判断
+    if (region) {
       const itemRegion = COUNTRY_TO_REGION[item.country] || item.region;
-      if (!selRegions.includes(itemRegion)) return false;
+      if (itemRegion !== region) return false;
     }
-    if (selCountries.length > 0 && !selCountries.includes(item.country)) return false;
+    if (country && item.country !== country) return false;
     if (importance && item.importance !== importance) return false;
     const subcategories = ['婚假','丧假','病假','产假','陪产假','育儿假','年假','调休','其他假期'];
     if (subcategories.includes(category)) {
