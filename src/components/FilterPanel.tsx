@@ -1,190 +1,104 @@
+'use client';
 import { ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { formatCountry, formatRegion, regionCnToCountryCns, countryCnToRegionCn } from '@/data/regions';
 
 interface FilterPanelProps {
-  selectedCountry: string;
-  selectedCategory: string;
-  selectedRegion: string;
+  selectedRegions: string[];
+  selectedCountries: string[];
+  selectedCategories: string[];
+  regions: string[];
   countries: string[];
   categories: string[];
-  regions: string[];
-  onCountryChange: (value: string) => void;
-  onCategoryChange: (value: string) => void;
-  onRegionChange: (value: string) => void;
+  onRegionsChange: (v: string[]) => void;
+  onCountriesChange: (v: string[]) => void;
+  onCategoriesChange: (v: string[]) => void;
   onReset: () => void;
 }
 
-export default function FilterPanel({
-  selectedCountry,
-  selectedCategory,
-  selectedRegion,
-  countries,
-  categories,
-  regions,
-  onCountryChange,
-  onCategoryChange,
-  onRegionChange,
-  onReset,
-}: FilterPanelProps) {
-  const [expandedSections, setExpandedSections] = useState({
-    region: true,
-    country: true,
-    category: true,
-  });
+export default function FilterPanel({ selectedRegions, selectedCountries, selectedCategories, regions, countries, categories, onRegionsChange, onCountriesChange, onCategoriesChange, onReset }: FilterPanelProps) {
+  const [expanded, setExpanded] = useState({ region: true, country: true, category: true });
+  const toggle = (s: 'region'|'country'|'category') => setExpanded(p => ({ ...p, [s]: !p[s] }));
+  const hasFilters = selectedRegions.length > 0 || selectedCountries.length > 0 || selectedCategories.length > 0;
 
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
+  const visibleCountries = useMemo(() => {
+    if (selectedRegions.length === 0) return countries;
+    const allowed = new Set<string>();
+    selectedRegions.forEach(r => (regionCnToCountryCns[r] ?? []).forEach(c => allowed.add(c)));
+    return countries.filter(c => allowed.has(c));
+  }, [selectedRegions, countries]);
+
+  const toggleRegion = (r: string) => {
+    const next = selectedRegions.includes(r) ? selectedRegions.filter(x => x !== r) : [...selectedRegions, r];
+    if (selectedRegions.includes(r)) {
+      const remove = new Set(regionCnToCountryCns[r] ?? []);
+      onCountriesChange(selectedCountries.filter(c => !remove.has(c)));
+    }
+    onRegionsChange(next);
   };
 
-  const hasFilters = selectedCountry || selectedCategory || selectedRegion;
+  const toggleCountry = (c: string) => {
+    const next = selectedCountries.includes(c) ? selectedCountries.filter(x => x !== c) : [...selectedCountries, c];
+    if (!selectedCountries.includes(c)) {
+      const reg = countryCnToRegionCn[c];
+      if (reg && !selectedRegions.includes(reg)) onRegionsChange([...selectedRegions, reg]);
+    }
+    onCountriesChange(next);
+  };
+
+  const toggleCategory = (c: string) => {
+    onCategoriesChange(selectedCategories.includes(c) ? selectedCategories.filter(x => x !== c) : [...selectedCategories, c]);
+  };
 
   return (
     <div className="bg-white rounded-lg p-6 card-shadow sticky top-8">
-      {/* 筛选标题 */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="font-bold text-gray-900 text-lg">筛选选项</h3>
-        {hasFilters && (
-          <button
-            onClick={onReset}
-            className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-          >
-            清除
-          </button>
-        )}
+        {hasFilters && <button onClick={onReset} className="text-xs text-blue-600 hover:text-blue-700 font-medium">清除</button>}
       </div>
-
-      {/* 地区筛选 */}
       <div className="mb-6 pb-6 border-b border-gray-200">
-        <button
-          onClick={() => toggleSection('region')}
-          className="w-full flex items-center justify-between mb-3 hover:text-blue-600 transition"
-        >
-          <h4 className="font-semibold text-gray-900">地区</h4>
-          <ChevronDown
-            size={18}
-            className={`transform transition ${
-              expandedSections.region ? 'rotate-180' : ''
-            }`}
-          />
+        <button onClick={() => toggle('region')} className="w-full flex items-center justify-between mb-3 hover:text-blue-600 transition">
+          <h4 className="font-semibold text-gray-900">地区 Region</h4>
+          <ChevronDown size={18} className={`transform transition ${expanded.region ? 'rotate-180' : ''}`} />
         </button>
-        {expandedSections.region && (
-          <div className="space-y-2">
-            <label className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded">
-              <input
-                type="radio"
-                name="region"
-                checked={selectedRegion === ''}
-                onChange={() => onRegionChange('')}
-                className="w-4 h-4 text-blue-600"
-              />
-              <span className="ml-3 text-gray-700">全部</span>
-            </label>
-            {regions.map((region) => (
-              <label
-                key={region}
-                className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded"
-              >
-                <input
-                  type="radio"
-                  name="region"
-                  checked={selectedRegion === region}
-                  onChange={() => onRegionChange(region)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="ml-3 text-gray-700">{region}</span>
+        {expanded.region && (
+          <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+            {regions.map(r => (
+              <label key={r} className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded">
+                <input type="checkbox" checked={selectedRegions.includes(r)} onChange={() => toggleRegion(r)} className="w-4 h-4 text-blue-600 rounded" />
+                <span className="ml-3 text-gray-700 text-sm">{formatRegion(r)}</span>
               </label>
             ))}
           </div>
         )}
       </div>
-
-      {/* 国家筛选 */}
       <div className="mb-6 pb-6 border-b border-gray-200">
-        <button
-          onClick={() => toggleSection('country')}
-          className="w-full flex items-center justify-between mb-3 hover:text-blue-600 transition"
-        >
-          <h4 className="font-semibold text-gray-900">国家</h4>
-          <ChevronDown
-            size={18}
-            className={`transform transition ${
-              expandedSections.country ? 'rotate-180' : ''
-            }`}
-          />
+        <button onClick={() => toggle('country')} className="w-full flex items-center justify-between mb-3 hover:text-blue-600 transition">
+          <h4 className="font-semibold text-gray-900">国家 Country{selectedRegions.length > 0 && <span className="ml-2 text-xs font-normal text-gray-500">（已按地区过滤）</span>}</h4>
+          <ChevronDown size={18} className={`transform transition ${expanded.country ? 'rotate-180' : ''}`} />
         </button>
-        {expandedSections.country && (
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            <label className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded">
-              <input
-                type="radio"
-                name="country"
-                checked={selectedCountry === ''}
-                onChange={() => onCountryChange('')}
-                className="w-4 h-4 text-blue-600"
-              />
-              <span className="ml-3 text-gray-700">全部国家</span>
-            </label>
-            {countries.map((country) => (
-              <label
-                key={country}
-                className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded"
-              >
-                <input
-                  type="radio"
-                  name="country"
-                  checked={selectedCountry === country}
-                  onChange={() => onCountryChange(country)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="ml-3 text-gray-700">{country}</span>
+        {expanded.country && (
+          <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+            {visibleCountries.length === 0 ? <p className="text-xs text-gray-400 p-2">暂无国家数据</p> : visibleCountries.map(c => (
+              <label key={c} className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded">
+                <input type="checkbox" checked={selectedCountries.includes(c)} onChange={() => toggleCountry(c)} className="w-4 h-4 text-blue-600 rounded" />
+                <span className="ml-3 text-gray-700 text-sm">{formatCountry(c)}</span>
               </label>
             ))}
           </div>
         )}
       </div>
-
-      {/* 分类筛选 */}
       <div>
-        <button
-          onClick={() => toggleSection('category')}
-          className="w-full flex items-center justify-between mb-3 hover:text-blue-600 transition"
-        >
-          <h4 className="font-semibold text-gray-900">分类</h4>
-          <ChevronDown
-            size={18}
-            className={`transform transition ${
-              expandedSections.category ? 'rotate-180' : ''
-            }`}
-          />
+        <button onClick={() => toggle('category')} className="w-full flex items-center justify-between mb-3 hover:text-blue-600 transition">
+          <h4 className="font-semibold text-gray-900">分类 Category</h4>
+          <ChevronDown size={18} className={`transform transition ${expanded.category ? 'rotate-180' : ''}`} />
         </button>
-        {expandedSections.category && (
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            <label className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded">
-              <input
-                type="radio"
-                name="category"
-                checked={selectedCategory === ''}
-                onChange={() => onCategoryChange('')}
-                className="w-4 h-4 text-blue-600"
-              />
-              <span className="ml-3 text-gray-700">全部分类</span>
-            </label>
-            {categories.map((category) => (
-              <label
-                key={category}
-                className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded"
-              >
-                <input
-                  type="radio"
-                  name="category"
-                  checked={selectedCategory === category}
-                  onChange={() => onCategoryChange(category)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="ml-3 text-gray-700 text-sm">{category}</span>
+        {expanded.category && (
+          <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+            {categories.map(c => (
+              <label key={c} className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded">
+                <input type="checkbox" checked={selectedCategories.includes(c)} onChange={() => toggleCategory(c)} className="w-4 h-4 text-blue-600 rounded" />
+                <span className="ml-3 text-gray-700 text-sm">{c}</span>
               </label>
             ))}
           </div>
