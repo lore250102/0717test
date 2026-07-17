@@ -1322,15 +1322,6 @@ function t(key) {
 }
 
 // ============ FILTERS ============
-function populateCountryFilter() {
-  const countries = [...new Set(laborLawData.map(d => d.country))].sort();
-  const select = document.getElementById('filterCountry');
-  select.innerHTML = '<option value="" data-i18n="all">' + t('all') + '</option>';
-  countries.forEach(c => {
-    const item = laborLawData.find(d => d.country === c);
-    select.innerHTML += `<option value="${c}">${item.flag} ${c}</option>`;
-  });
-}
 
 function populateCompareSelects() {
   const countries = [...new Set(laborLawData.map(d => d.country))].sort();
@@ -1343,43 +1334,94 @@ function populateCompareSelects() {
   });
 }
 
+const REGION_MAP = {
+  '东南亚地区': ['新加坡','泰国','马来西亚','越南','菲律宾','柬埔寨','缅甸'],
+  '东亚地区': ['日本','韩国','中国台湾','中国香港'],
+  '南亚地区': ['印度','尼泊尔','孟加拉','斯里兰卡'],
+  '印尼地区部': ['印尼'],
+  '澳新地区': ['澳大利亚'],
+  '独联体地区': ['俄罗斯','哈萨克斯坦','阿塞拜疆','乌兹别克斯坦'],
+  '东北欧地区': ['罗马尼亚','波兰','芬兰','匈牙利','乌克兰','塞尔维亚','希腊','捷克','瑞典','立陶宛','波黑','北马其顿','摩尔多瓦','克罗地亚','保加利亚','斯洛伐克','斯洛文尼亚'],
+  '西欧地区': ['奥地利','英国','瑞士','卢森堡','法国','德国','意大利','荷兰','西班牙','比利时','葡萄牙'],
+  '中东地区': ['巴基斯坦','土耳其','阿联酋','卡塔尔','沙特阿拉伯','伊拉克','约旦','阿曼'],
+  '非洲地区': ['埃及','肯尼亚','摩洛哥','南非','尼日利亚','突尼斯','坦桑尼亚'],
+  '美国': ['美国'],
+  '拉美地区': ['墨西哥','秘鲁','智利','巴西','阿根廷','哥伦比亚','危地马拉','玻利维亚','哥斯达黎加','萨尔瓦多','厄瓜多尔','多米尼加','洪都拉斯','尼加拉瓜']
+};
+const COUNTRY_TO_REGION = {};
+Object.entries(REGION_MAP).forEach(([r, cs]) => cs.forEach(c => { if (!COUNTRY_TO_REGION[c]) COUNTRY_TO_REGION[c] = r; }));
+const ALL_REGIONS = Object.keys(REGION_MAP);
+const ALL_COUNTRIES = ALL_REGIONS.flatMap(r => REGION_MAP[r]);
+
+function buildRegionCheckboxes() {
+  const el = document.getElementById('regionCheckboxes');
+  el.innerHTML = '<label style="display:flex;align-items:center;cursor:pointer;padding:4px 8px;border-radius:6px" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'"><input type="checkbox" class="region-cb" onchange="onRegionChange()" checked style="margin-right:8px"><span>全部</span></label>' +
+    ALL_REGIONS.map(r => '<label style="display:flex;align-items:center;cursor:pointer;padding:4px 8px;border-radius:6px" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'"><input type="checkbox" class="region-cb" value="'+r+'" onchange="onRegionChange()" style="margin-right:8px"><span>'+r+'</span></label>').join('');
+}
+
+function buildCountryCheckboxes(filtered) {
+  const list = filtered || ALL_COUNTRIES;
+  const el = document.getElementById('countryCheckboxes');
+  el.innerHTML = '<label style="display:flex;align-items:center;cursor:pointer;padding:4px 8px;border-radius:6px" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'"><input type="checkbox" class="country-cb" onchange="onCountryChange()" checked style="margin-right:8px"><span>全部</span></label>' +
+    list.map(c => '<label style="display:flex;align-items:center;cursor:pointer;padding:4px 8px;border-radius:6px" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'"><input type="checkbox" class="country-cb" value="'+c+'" onchange="onCountryChange()" style="margin-right:8px"><span>'+c+'</span></label>').join('');
+}
+
+function getSelectedRegions() {
+  return Array.from(document.querySelectorAll('.region-cb')).filter(cb => cb.checked && cb.value).map(cb => cb.value);
+}
+function getSelectedCountries() {
+  return Array.from(document.querySelectorAll('.country-cb')).filter(cb => cb.checked && cb.value).map(cb => cb.value);
+}
+
+function onRegionChange() {
+  const sel = getSelectedRegions();
+  const visC = sel.length ? ALL_COUNTRIES.filter(c => sel.includes(COUNTRY_TO_REGION[c])) : ALL_COUNTRIES;
+  buildCountryCheckboxes(visC);
+  applyFilters();
+}
+
+function onCountryChange() {
+  const selC = getSelectedCountries();
+  const needed = [...new Set(selC.map(c => COUNTRY_TO_REGION[c]))];
+  document.querySelectorAll('.region-cb').forEach(cb => { if (cb.value && needed.includes(cb.value)) cb.checked = true; });
+  applyFilters();
+}
+
 function applyFilters() {
   const search = document.getElementById('searchInput').value.toLowerCase();
-  const region = document.getElementById('filterRegion').value;
-  const country = document.getElementById('filterCountry').value;
+  const selRegions = getSelectedRegions();
+  const selCountries = getSelectedCountries();
   const category = document.getElementById('filterCategory').value;
   const importance = document.getElementById('filterImportance').value;
   const sortBy = document.getElementById('sortBy').value;
 
   filteredData = laborLawData.filter(item => {
-    if (region && item.region !== region) return false;
-    if (country && item.country !== country) return false;
+    if (selRegions.length > 0) {
+      const itemRegion = COUNTRY_TO_REGION[item.country] || item.region;
+      if (!selRegions.includes(itemRegion)) return false;
+    }
+    if (selCountries.length > 0 && !selCountries.includes(item.country)) return false;
     if (importance && item.importance !== importance) return false;
-    // 处理休假子类目筛选
-    const subcategories = ['年假','病假','产假','陪产假','育儿假','领养假','婚假','丧假','其他假期'];
+    const subcategories = ['婚假','丧假','病假','产假','陪产假','育儿假','年假','调休','其他假期'];
     if (subcategories.includes(category)) {
-      // 选择了子类目，只显示该子类目的休假数据
       if (item.category !== '休假' || item.subcategory !== category) return false;
     } else if (category) {
-      // 选择了其他大类
       if (item.category !== category) return false;
     }
     if (search) {
-      const searchStr = `${item.country} ${item.lawName} ${item.article} ${item.category} ${item.subcategory || ''} ${item.originalText} ${item.chineseTranslation}`.toLowerCase();
-      if (!searchStr.includes(search)) return false;
+      const s = `${item.country} ${item.lawName} ${item.article} ${item.category} ${item.subcategory || ''} ${item.originalText} ${item.chineseTranslation}`.toLowerCase();
+      if (!s.includes(search)) return false;
     }
     return true;
   });
 
-  // Sort
-  const importanceOrder = { high: 0, medium: 1, low: 2 };
+  const io = { high: 0, medium: 1, low: 2 };
   filteredData.sort((a, b) => {
     if (sortBy === 'country') return a.country.localeCompare(b.country);
     if (sortBy === 'date') return b.lastUpdated.localeCompare(a.lastUpdated);
-    if (sortBy === 'importance') return importanceOrder[a.importance] - importanceOrder[b.importance];
+    if (sortBy === 'importance') return io[a.importance] - io[b.importance];
     return 0;
   });
-
   renderCards();
   updateResultCount();
 }
